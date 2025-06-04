@@ -1,18 +1,18 @@
-name: Auto close not reading issues
+name: Auto Close not reading issues or Fold checkboxes
 
 on:
   issues:
-    types: [opened, edited]
+    types: [opened]
 
 jobs:
-  check-and-close:
+  check-then-close-or-fold:
     runs-on: ubuntu-latest
     permissions:
       issues: write
 
     steps:
     - name: Check checkbox status
-      id: checkbox-check
+      id: unread-checkbox-check
       uses: actions/github-script@v6
       with:
         script: |
@@ -22,7 +22,7 @@ jobs:
           return texts.some(text => new RegExp(`- \\[x\\]\\s*${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(context.payload.issue.body));
 
     - name: Close and lock issue
-      if: steps.checkbox-check.outputs.result == 'true'
+      if: steps.unread-checkbox-check.outputs.result == 'true'
       uses: actions/github-script@v6
       with:
         script: |
@@ -40,4 +40,28 @@ jobs:
             issue_number: context.issue.number,
             lock_reason: 'spam'
           });
-        
+
+    - name: Fold checkboxes
+      if: steps.unread-checkbox-check.outputs.result == 'false'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const originalBody = context.payload.issue.body;
+          const checkboxSectionRegex_cn = /([\s\S]*?)(### 问题描述\n\n)/;
+          const checkboxSectionRegex_en = /([\s\S]*?)(### Description\n\n)/;
+          
+          const foldedBody_cn = originalBody.replace(
+            checkboxSectionRegex_cn,
+            `<details><summary>Checkboxes</summary>\n\n$1\n\n</details>\n\n$2`
+          );
+          const foldedBody = foldedBody_cn.replace(
+            checkboxSectionRegex_en,
+            `<details><summary>Checkboxes</summary>\n\n$1\n\n</details>\n\n$2`
+          );
+          
+          await github.rest.issues.update({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body: foldedBody
+          });
