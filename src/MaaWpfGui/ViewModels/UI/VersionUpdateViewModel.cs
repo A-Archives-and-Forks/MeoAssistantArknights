@@ -202,7 +202,7 @@ public class VersionUpdateViewModel : Screen
         }
 
         string curDir = Directory.GetCurrentDirectory();
-        string extractDir = Path.Combine(curDir, "NewVersionExtract");
+        string extractDir = Path.Combine(curDir, "NewVersionExtract"); // 新版本解压的路径
         string oldFileDir = Path.Combine(curDir, ".old");
 
         // 解压
@@ -282,6 +282,22 @@ public class VersionUpdateViewModel : Screen
                 {
                     _logger.Error($"move file error, path: {path}, moveTo: {moveTo}, error: {e.Message}");
                     throw;
+                }
+            }
+        }
+        else
+        {
+            foreach (var dir in Directory.GetDirectories(extractDir))
+            {
+                try
+                {
+                    if (Directory.Exists(dir.Replace(extractDir, curDir)))
+                    {
+                        Directory.Delete(dir.Replace(extractDir, curDir), true);
+                    }
+                }
+                catch
+                { // ignore
                 }
             }
         }
@@ -535,6 +551,7 @@ public class VersionUpdateViewModel : Screen
             SettingsViewModel.VersionUpdateSettings.IsCheckingForUpdates = true;
 
             var (checkRet, source) = await CheckUpdate();
+
             if (checkRet != CheckUpdateRetT.OK)
             {
                 return checkRet;
@@ -961,6 +978,10 @@ public class VersionUpdateViewModel : Screen
         if (_assetsObject == null && fullPackage != null)
         {
             _assetsObject = fullPackage;
+            _logger.Warning("No OTA package found, but full package found.");
+            using var toast = new ToastNotification(LocalizationHelper.GetString("NewVersionNoOtaPackage"));
+            toast.Show(30);
+            Instances.TaskQueueViewModel.AddLog(LocalizationHelper.GetString("NewVersionNoOtaPackage"), UiLogColor.Warning);
         }
 
         return CheckUpdateRetT.OK;
@@ -1188,6 +1209,7 @@ public class VersionUpdateViewModel : Screen
 
     public bool IsDebugVersion(string? version = null)
     {
+        // return false;
         version ??= _curVersion;
 
         // match case 1: DEBUG VERSION
